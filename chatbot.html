@@ -19,11 +19,110 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            gap: 20px;
+        }
+
+        .main-container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            max-width: 1400px;
+            height: 90vh;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            border: 2px solid #00693E;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 105, 62, 0.15);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #00693E 0%, #004d2e 100%);
+            color: white;
+            padding: 18px 16px;
+            border-bottom: 2px solid #004d2e;
+        }
+
+        .sidebar-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #f0f4f2;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #00693E;
+            border-radius: 3px;
+        }
+
+        .menu-category {
+            margin-bottom: 20px;
+        }
+
+        .menu-category h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #00693E;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #e8f4f0;
+        }
+
+        .menu-item {
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            background: #fafbfa;
+            border: 1px solid #e0e6e3;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 13px;
+        }
+
+        .menu-item:hover {
+            background: #e8f4f0;
+            border-color: #00693E;
+            transform: translateX(2px);
+        }
+
+        .menu-item-name {
+            font-weight: 500;
+            color: #2d3436;
+            margin-bottom: 4px;
+        }
+
+        .menu-item-id {
+            font-size: 11px;
+            color: #666;
+            font-family: 'Monaco', 'Menlo', monospace;
         }
 
         .chat-container {
-            width: 100%;
-            max-width: 900px;
+            flex: 1;
+            min-width: 0;
             height: 90vh;
             background: white;
             border: 2px solid #00693E;
@@ -236,12 +335,54 @@
             color: rgba(255, 255, 255, 0.95);
         }
 
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: #00693E;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 4px 8px rgba(0, 105, 62, 0.3);
+        }
+
         /* Mobile responsiveness */
+        @media (max-width: 1024px) {
+            .sidebar {
+                position: fixed;
+                left: -320px;
+                top: 0;
+                height: 100vh;
+                z-index: 999;
+                transition: left 0.3s ease;
+            }
+
+            .sidebar.open {
+                left: 0;
+            }
+
+            .sidebar-toggle {
+                display: block;
+            }
+
+            .main-container {
+                max-width: 100%;
+            }
+        }
+
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
             .chat-container {
                 height: 100vh;
                 border-radius: 0;
-                max-width: 100%;
             }
 
             .message-bubble {
@@ -263,7 +404,20 @@
     </style>
 </head>
 <body>
-    <div class="chat-container">
+    <button class="sidebar-toggle" id="sidebarToggle">☰ Menu</button>
+    <div class="main-container">
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Quick Add Menu</h2>
+                <p>Click items to add to cart</p>
+            </div>
+            <div class="sidebar-content" id="sidebarContent">
+                <div style="padding: 20px; text-align: center; color: #666;">
+                    Loading menu items...
+                </div>
+            </div>
+        </div>
+        <div class="chat-container">
         <div class="chat-header">
             <h1>Dartmouth Meal Planner</h1>
             <p>Plan your meals with Dartmouth dining options</p>
@@ -292,6 +446,7 @@
             </form>
         </div>
     </div>
+    </div>
 
     <script>
         const API_URL = 'http://localhost:3000';
@@ -299,6 +454,126 @@
         const chatForm = document.getElementById('chatForm');
         const messageInput = document.getElementById('messageInput');
         const sendButton = document.getElementById('sendButton');
+        const sidebarContent = document.getElementById('sidebarContent');
+        const sidebar = document.getElementById('sidebar');
+        const sidebarToggle = document.getElementById('sidebarToggle');
+
+        // Toggle sidebar on mobile
+        if (sidebarToggle) {
+            sidebarToggle.addEventListener('click', () => {
+                sidebar.classList.toggle('open');
+            });
+        }
+
+        // Load menu items for sidebar - show popular categories
+        async function loadMenuItems() {
+            try {
+                // Popular categories to show in sidebar
+                const popularCategories = [
+                    'Entrees:Meat:Beef',
+                    'Entrees:Poultry:Chicken',
+                    'Side Dishes:Potatoes',
+                    'Desserts:Frozen',
+                    'Beverages:Smoothies'
+                ];
+
+                const categoryMap = {};
+                
+                // Load items for each popular category
+                for (const categoryPath of popularCategories) {
+                    const topLevel = categoryPath.split(':')[0];
+                    
+                    if (!categoryMap[topLevel]) {
+                        categoryMap[topLevel] = [];
+                    }
+                    
+                    try {
+                        const itemsResponse = await fetch(`${API_URL}/api/tools/call`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                name: 'get_items_by_category',
+                                arguments: { category_path: categoryPath }
+                            }),
+                        });
+
+                        if (itemsResponse.ok) {
+                            const itemsResult = await itemsResponse.json();
+                            const itemsText = itemsResult.content[0].text;
+                            const itemLines = itemsText.split('\n').filter(line => line.trim().startsWith('-'));
+                            
+                            for (const line of itemLines.slice(0, 3)) { // Limit to 3 items per category
+                                const match = line.match(/- (.+?) \(ID: (\d+)/);
+                                if (match) {
+                                    const name = match[1];
+                                    const id = match[2];
+                                    // Avoid duplicates
+                                    if (!categoryMap[topLevel].find(item => item.id === id)) {
+                                        categoryMap[topLevel].push({ name, id });
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        // Skip if category fetch fails
+                    }
+                }
+
+                // Render menu items
+                renderMenuItems(categoryMap);
+            } catch (error) {
+                sidebarContent.innerHTML = `
+                    <div style="padding: 20px; text-align: center; color: #c33;">
+                        Failed to load menu items. Please refresh the page.
+                    </div>
+                `;
+            }
+        }
+
+        function renderMenuItems(categoryMap) {
+            let html = '';
+            
+            for (const [category, items] of Object.entries(categoryMap).sort()) {
+                if (items.length === 0) continue;
+                
+                html += `<div class="menu-category">
+                    <h3>${category}</h3>`;
+                
+                for (const item of items) {
+                    html += `
+                        <div class="menu-item" data-id="${item.id}" data-name="${item.name}">
+                            <div class="menu-item-name">${item.name}</div>
+                            <div class="menu-item-id">ID: ${item.id}</div>
+                        </div>
+                    `;
+                }
+                
+                html += `</div>`;
+            }
+
+            sidebarContent.innerHTML = html || '<div style="padding: 20px; text-align: center; color: #666;">No items available</div>';
+
+            // Add click handlers
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.addEventListener('click', async () => {
+                    const recipeId = item.dataset.id;
+                    const itemName = item.dataset.name;
+                    
+                    // Add to cart via chat
+                    const message = `Add recipe ID ${recipeId} to cart`;
+                    messageInput.value = message;
+                    
+                    // Trigger form submission
+                    const submitEvent = new Event('submit', { bubbles: true, cancelable: true });
+                    chatForm.dispatchEvent(submitEvent);
+                });
+            });
+        }
+
+        // Load menu items on page load
+        loadMenuItems();
 
         // Add message to chat
         function addMessage(text, isUser = false, toolInfo = null) {

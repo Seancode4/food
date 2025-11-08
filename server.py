@@ -364,11 +364,25 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                             # API error - fall back to XML data
                             recipe_data = None
                 
+                # Handle both RECIPE (singular) and RECIPES (plural) responses
                 if recipe_data and 'RECIPE' in recipe_data:
                     recipe = recipe_data['RECIPE']
+                elif recipe_data and 'RECIPES' in recipe_data:
+                    recipes_data = recipe_data['RECIPES']
+                    # If RECIPES is a dict, try to find the actual recipe data
+                    if isinstance(recipes_data, dict):
+                        # Check if there's a RECIPE key inside RECIPES
+                        if 'RECIPE' in recipes_data:
+                            recipe = recipes_data['RECIPE']
+                        else:
+                            # Use RECIPES as the recipe data
+                            recipe = recipes_data
+                    else:
+                        recipe = recipes_data
             except Exception as e:
                 # API call failed - fall back to XML data
                 recipe_data = None
+                recipe = None
             
             # Fall back to XML data if API failed
             if not recipe:
@@ -388,11 +402,32 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 category = recipe.get('category', '')
                 
                 # Extract nutrients from API response
-                if isinstance(recipe, dict) and 'nutrients' in recipe:
-                    nutrients_data = recipe['nutrients']
+                # Check for nutrients in various possible locations
+                nutrients_data = None
+                if isinstance(recipe, dict):
+                    # Check for nutrients in recipe dict
+                    if 'nutrients' in recipe:
+                        nutrients_data = recipe['nutrients']
+                    elif 'NUTRIENTS' in recipe:
+                        nutrients_data = recipe['NUTRIENTS']
+                    # Also check in parent RECIPES structure
+                    if not nutrients_data and recipe_data and 'RECIPES' in recipe_data:
+                        recipes_data = recipe_data['RECIPES']
+                        if isinstance(recipes_data, dict) and 'NUTRIENTS' in recipes_data:
+                            nutrients_data = recipes_data['NUTRIENTS']
+                
+                # Parse nutrients data
+                if nutrients_data:
                     if isinstance(nutrients_data, dict):
-                        nutrients = nutrients_data
+                        # If it's a dict, extract values directly
+                        for key, value in nutrients_data.items():
+                            if key != 'NUTRIENTS':  # Skip metadata strings
+                                try:
+                                    nutrients[key] = float(value) if value else 0
+                                except (ValueError, TypeError):
+                                    nutrients[key] = 0
                     elif isinstance(nutrients_data, list):
+                        # If it's a list of nutrient objects
                         for nutrient in nutrients_data:
                             if isinstance(nutrient, dict):
                                 nutrient_name = nutrient.get('name', '')
@@ -402,6 +437,10 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                                         nutrients[nutrient_name] = float(nutrient_value) if nutrient_value else 0
                                     except (ValueError, TypeError):
                                         nutrients[nutrient_name] = 0
+                    elif isinstance(nutrients_data, str):
+                        # If it's a string (metadata), nutrients aren't available
+                        # This is just a list of available nutrients, not actual values
+                        nutrients = {}
             
             # Store base nutrients (per unit) for this recipe
             base_nutrients = nutrients.copy()

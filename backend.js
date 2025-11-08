@@ -123,7 +123,7 @@ app.post('/api/chat', async (req, res) => {
     const messages = [
       {
         role: 'system',
-        content: 'You are a helpful assistant that can use tools to help users. When you need to use a tool, call it with the appropriate parameters. When summarizing cart information or meal plans, always include and highlight the macronutrient information (calories, protein, carbohydrates, fat, fiber, sodium, etc.) to help users understand their nutritional intake.',
+        content: 'You are a helpful assistant that can use tools to help users. When you need to use a tool, call it with the appropriate parameters. When summarizing cart information or meal plans, always include and highlight the macronutrient information (calories, protein, carbohydrates, fat, fiber, sodium, etc.) to help users understand their nutritional intake. If nutrient values are not available, do not use placeholder text like "[Insert value]" - instead, clearly state that nutrient information is not available for that item.',
       },
       ...history,
       {
