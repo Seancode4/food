@@ -3,10 +3,12 @@
 import asyncio
 import xml.etree.ElementTree as ET
 import os
+import json
 from difflib import SequenceMatcher
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import Tool, TextContent
+from menu_service import get_recipe_detail
 
 app = Server("basic-mcp-server")
 
@@ -143,6 +145,35 @@ async def list_tools() -> list[Tool]:
                 "required": ["item_name"],
             },
         ),
+        Tool(
+            name="get_recipe_detail",
+            description="Get detailed information about a recipe by its ID. Returns recipe details including name, category, portion size, and optionally ingredients, methods, and nutritional information.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "recipe_id": {
+                        "type": "string",
+                        "description": "The recipe ID to get details for (e.g., '1032', '5765')",
+                    },
+                    "include_ingredients": {
+                        "type": "boolean",
+                        "description": "Whether to include ingredient information (default: false)",
+                        "default": False,
+                    },
+                    "include_method": {
+                        "type": "boolean",
+                        "description": "Whether to include cooking method information (default: false)",
+                        "default": False,
+                    },
+                    "include_ldas": {
+                        "type": "boolean",
+                        "description": "Whether to include LDA (Label Declaration Analysis) information (default: false)",
+                        "default": False,
+                    },
+                },
+                "required": ["recipe_id"],
+            },
+        ),
     ]
 
 @app.call_tool()
@@ -206,6 +237,62 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=result)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error retrieving item ID: {str(e)}")]
+    
+    elif name == "get_recipe_detail":
+        try:
+            recipe_id = arguments.get("recipe_id", "")
+            if not recipe_id:
+                return [TextContent(type="text", text="Error: recipe_id is required")]
+            
+            include_ingredients = arguments.get("include_ingredients", False)
+            include_method = arguments.get("include_method", False)
+            include_ldas = arguments.get("include_ldas", False)
+            
+            # Call get_recipe_detail from menu_service
+            recipe_data = get_recipe_detail(
+                recipe_id,
+                include_ingredients=include_ingredients,
+                include_method=include_method,
+                include_ldas=include_ldas,
+            )
+            
+            # Format the result nicely
+            result = f"Recipe Details for ID {recipe_id}:\n\n"
+            
+            # Extract and format key information
+            if isinstance(recipe_data, dict) and 'RECIPE' in recipe_data:
+                recipe = recipe_data['RECIPE']
+                
+                # Basic information
+                if isinstance(recipe, dict):
+                    if 'id' in recipe:
+                        result += f"ID: {recipe['id']}\n"
+                    if 'name' in recipe:
+                        result += f"Name: {recipe['name']}\n"
+                    elif 'value' in recipe:
+                        result += f"Name: {recipe['value']}\n"
+                    if 'category' in recipe:
+                        result += f"Category: {recipe['category']}\n"
+                    if 'portionsize' in recipe:
+                        result += f"Portion Size: {recipe['portionsize']}\n"
+                    
+                    # Additional details if available
+                    if include_ingredients and 'ingredients' in recipe:
+                        result += f"\nIngredients:\n{json.dumps(recipe.get('ingredients', {}), indent=2)}\n"
+                    
+                    if include_method and 'methods' in recipe:
+                        result += f"\nCooking Methods:\n{json.dumps(recipe.get('methods', {}), indent=2)}\n"
+                    
+                    if include_ldas and 'ldas' in recipe:
+                        result += f"\nLDA Information:\n{json.dumps(recipe.get('ldas', {}), indent=2)}\n"
+                else:
+                    result += json.dumps(recipe_data, indent=2)
+            else:
+                result += json.dumps(recipe_data, indent=2)
+            
+            return [TextContent(type="text", text=result)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error retrieving recipe details: {str(e)}")]
     
     raise ValueError(f"Unknown tool: {name}")
 

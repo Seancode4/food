@@ -1,2 +1,3 @@
 git+https://github.com/modelcontextprotocol/python-sdk.git
+requests>=2.31.0
 

@@ -1,120 +1,134 @@
-# Basic MCP Server
+# Dartmouth Meal Planner
 
-A minimal Model Context Protocol (MCP) server with one tool, written in Python.
+An AI-powered meal planning tool that helps you explore Dartmouth dining options, find food items, and get nutritional information to plan your meals.
 
-## Setup
+## Quick Start
 
-1. Create and activate a Python virtual environment:
+### 1. Install Dependencies
+
+**Python dependencies:**
 ```bash
-python3 -m venv venv
+# Create virtual environment (if not already created)
+python3.10 -m venv venv
 source venv/bin/activate  # On macOS/Linux
-# or
-venv\Scripts\activate  # On Windows
-```
 
-2. Install Python dependencies:
-```bash
+# Install Python packages
 pip install -r requirements.txt
 ```
 
-3. Install Node.js dependencies (for testing):
+**Node.js dependencies:**
 ```bash
 npm install
 ```
 
-## Usage
+### 2. Set Up OpenAI API Key
 
-Run the server directly (make sure venv is activated):
-```bash
-python3 server.py
+Edit `backend.js` and set your OpenAI API key on line 24:
+```javascript
+const OPENAI_API_KEY = 'your-api-key-here';
 ```
 
-Or using npm:
-```bash
-npm start
-```
-
-## Testing with npx
-
-Test the server using the MCP Inspector:
-
-```bash
-npm test
-```
-
-Or directly with npx:
-```bash
-npx @modelcontextprotocol/inspector python3 server.py
-```
-
-This will:
-1. Start the MCP Inspector (opens in browser at `http://localhost:6274/`)
-2. Launch your Python server
-3. Allow you to interactively test the server's tools
-
-In the Inspector interface, you can:
-- View available tools
-- Test the `echo` tool with custom inputs
-- Monitor server logs and notifications
-
-## Tool Details
-
-- **Name**: `echo`
-- **Description**: Echo back the input message
-- **Input**: `{ message: string }`
-- **Output**: Echoed message
-
-## Frontend Chatbot with LLM
-
-A web-based chatbot interface powered by OpenAI that can intelligently use MCP tools.
-
-### Setup
-
-1. Install Node.js dependencies (if not already installed):
-```bash
-npm install
-```
-
-2. Set up OpenAI API key:
+Or set it as an environment variable:
 ```bash
 export OPENAI_API_KEY=your-api-key-here
 ```
 
-Or create a `.env` file (not included in git):
-```
-OPENAI_API_KEY=your-api-key-here
-```
+### 3. Run the Application
 
-Get your API key from: https://platform.openai.com/api-keys
-
-3. Start the backend server:
+**Start the backend server:**
 ```bash
 npm run backend
 ```
 
-Or:
-```bash
-npm run chatbot
+**Open the chatbot:**
+- Open `chatbot.html` in your web browser
+- The backend runs on `http://localhost:3000`
+
+## How to Use
+
+### Ask What Types of Food Are Available
+
+You can ask the chatbot about available food categories:
+
+- **"What food categories are available?"**
+- **"Show me all categories"**
+- **"What types of entrees do you have?"**
+
+The chatbot will show you all available food categories like:
+- Entrees (Meat, Poultry, Seafood, etc.)
+- Side Dishes (Potatoes, Rice, Vegetables, etc.)
+- Desserts
+- Beverages
+- And more...
+
+### Find Specific Food Items
+
+Search for food items by name:
+
+- **"Find me beef items"**
+- **"What chicken options are available?"**
+- **"Show me items in Entrees:Meat:Beef"**
+- **"Get me the ID for Gluten Free Roll, Hamburger Bun"**
+
+### Get Food Information and Nutrients
+
+Get detailed information about any food item by its ID:
+
+- **"Get recipe details for ID 1032"**
+- **"Show me details for recipe ID 5765"**
+- **"What are the ingredients for recipe ID 1032?"**
+- **"Get nutritional information for recipe ID 5765"**
+
+You can also request additional details:
+- **"Get recipe details for ID 1032 with ingredients"** - Includes ingredient list
+- **"Show me recipe 5765 with cooking methods"** - Includes cooking methods
+- **"Get full details for ID 1032 including ingredients and methods"** - Includes everything
+
+### Plan Your Meal
+
+The chatbot can help you plan meals by:
+- Exploring available options
+- Finding items by category or name
+- Getting detailed information including nutrients
+- Comparing different food options
+
+**Example conversation:**
+```
+You: "What beef entrees are available?"
+Bot: [Shows list of beef entrees]
+
+You: "Get details for recipe ID 5765"
+Bot: [Shows recipe details, portion size, category, etc.]
+
+You: "Show me the ingredients for that recipe"
+Bot: [Shows ingredients if available]
 ```
 
-4. Open `chatbot.html` in your web browser
+## Features
 
-### Usage
+- **Category Browsing**: Explore all available food categories
+- **Item Search**: Find food items by name using smart matching
+- **Detailed Information**: Get recipe details including:
+  - Name and ID
+  - Category
+  - Portion size
+  - Ingredients (optional)
+  - Cooking methods (optional)
+  - Nutritional information (optional)
+- **AI-Powered**: Natural language interface - just ask questions!
 
-- The backend server runs on `http://localhost:3000`
-- Open `chatbot.html` in your browser
-- Chat naturally with the LLM - it will automatically use MCP tools when needed
-- Example: "Can you echo 'hello world'?" or "Use the echo tool to say hi"
+## Troubleshooting
 
-### How It Works
+**Backend won't start:**
+- Make sure Python 3.10+ is installed
+- Activate the virtual environment: `source venv/bin/activate`
+- Install dependencies: `pip install -r requirements.txt`
 
-1. **LLM Integration**: Uses OpenAI GPT-4o-mini for natural language understanding
-2. **Tool Discovery**: Automatically discovers available MCP tools
-3. **Function Calling**: LLM decides when to call tools based on user requests
-4. **Tool Execution**: Tools are executed via MCP server
-5. **Response Generation**: LLM generates natural responses using tool results
+**Chatbot can't connect:**
+- Make sure the backend is running: `npm run backend`
+- Check that it's running on `http://localhost:3000`
+- Refresh the chatbot page in your browser
 
-### Files
-
-- `backend.js` - Node.js backend server that bridges the frontend, LLM, and MCP server
-- `chatbot.html` - Frontend chatbot interface with a plain UI
+**API key issues:**
+- Make sure your OpenAI API key is set in `backend.js` or as an environment variable
+- Check the health endpoint: `http://localhost:3000/api/health`
