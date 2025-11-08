@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 800px;
+            height: 90vh;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            background: #fafafa;
+            color: #333;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #fff;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .message.user {
+            align-items: flex-end;
+        }
+
+        .message.bot {
+            align-items: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 4px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message.user .message-bubble {
+            background: #e0e0e0;
+            color: #333;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.bot .message-bubble {
+            background: #f5f5f5;
+            color: #333;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .message-tool {
+            background: #f9f9f9;
+            border-left: 2px solid #999;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .chat-input-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .chat-input:focus {
+            border-color: #999;
+        }
+
+        .send-button {
+            padding: 12px 24px;
+            background: #666;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: normal;
+            transition: background 0.2s;
+        }
+
+        .send-button:hover {
+            background: #555;
+        }
+
+        .send-button:active {
+            background: #444;
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>MCP Chatbot</h1>
+            <p>Chat with MCP tools</p>
+        </div>
+        
+        <div class="chat-messages" id="chatMessages">
+            <div class="message bot">
+                <div class="message-bubble">
+                    Hello! I'm an AI chatbot that can use MCP tools. Try asking me to echo something or use any available tools!
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <form class="chat-input-form" id="chatForm">
+                <input 
+                    type="text" 
+                    class="chat-input" 
+                    id="messageInput" 
+                    placeholder="Type a message... (e.g., 'echo hello world')"
+                    autocomplete="off"
+                />
+                <button type="submit" class="send-button" id="sendButton">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000';
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+
+        // Add message to chat
+        function addMessage(text, isUser = false, toolInfo = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+            
+            // Only show message bubble if there's text
+            if (text && text.trim()) {
+                const bubble = document.createElement('div');
+                bubble.className = 'message-bubble';
+                // Preserve formatting by converting newlines to <br> and preserving spaces
+                const formattedText = text.replace(/\n/g, '<br>').replace(/  /g, ' &nbsp;');
+                bubble.innerHTML = formattedText;
+                messageDiv.appendChild(bubble);
+            }
+
+            if (toolInfo) {
+                const toolDiv = document.createElement('div');
+                toolDiv.className = 'message-tool';
+                toolDiv.innerHTML = `<strong>Tool:</strong> ${toolInfo.name}<br><strong>Input:</strong> ${JSON.stringify(toolInfo.input)}`;
+                messageDiv.appendChild(toolDiv);
+            }
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Add error message
+        function addError(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot';
+            
+            const bubble = document.createElement('div');
+            bubble.className = 'message-bubble error';
+            bubble.textContent = `Error: ${text}`;
+            messageDiv.appendChild(bubble);
+
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Show loading state
+        function setLoading(loading) {
+            sendButton.disabled = loading;
+            if (loading) {
+                sendButton.innerHTML = '<span class="loading"></span>';
+            } else {
+                sendButton.textContent = 'Send';
+            }
+        }
+
+        // Chat history
+        let chatHistory = [];
+
+        // Send message to LLM
+        async function sendChatMessage(message) {
+            try {
+                const response = await fetch(`${API_URL}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        history: chatHistory,
+                    }),
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to send message');
+                }
+
+                const result = await response.json();
+                return result;
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        // Handle form submission
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const userMessage = messageInput.value.trim();
+            if (!userMessage) return;
+
+            // Add user message
+            addMessage(userMessage, true);
+            chatHistory.push({ role: 'user', content: userMessage });
+            messageInput.value = '';
+            setLoading(true);
+
+            try {
+                // Send message to LLM
+                const result = await sendChatMessage(userMessage);
+
+                // Show tool calls if any (before the response)
+                if (result.toolCalls && result.toolCalls.length > 0) {
+                    result.toolCalls.forEach(toolCall => {
+                        addMessage('', false, {
+                            name: toolCall.name,
+                            input: toolCall.arguments
+                        });
+                    });
+                }
+
+                // Add bot response
+                if (result.content) {
+                    addMessage(result.content, false);
+                    chatHistory.push({ role: 'assistant', content: result.content });
+                }
+            } catch (error) {
+                addError(error.message);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Check backend health on load
+        fetch(`${API_URL}/api/health`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.connected) {
+                    addError('Backend not connected to MCP server. Make sure the backend is running.');
+                }
+                if (!data.openaiConfigured) {
+                    addError('OpenAI API key not configured. Set OPENAI_API_KEY environment variable.');
+                }
+            })
+            .catch(() => {
+                addError('Cannot connect to backend. Make sure the backend server is running on port 3000.');
+            });
+    </script>
+</body>
+</html>
+
