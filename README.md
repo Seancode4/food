@@ -84,24 +84,52 @@ You can also request additional details:
 - **"Show me recipe 5765 with cooking methods"** - Includes cooking methods
 - **"Get full details for ID 1032 including ingredients and methods"** - Includes everything
 
+### Add Items to Cart
+
+Add food items to your cart to track your meal plan and nutritional totals:
+
+- **"Add recipe ID 1032 to cart"**
+- **"Add 2 of recipe ID 5765 to my cart"**
+- **"Put recipe ID 1032 in my cart"**
+
+When you add an item, it automatically fetches and saves the nutritional information for that item.
+
+### View Your Cart and Nutrition Summary
+
+Get a summary of all items in your cart with total macronutrients:
+
+- **"Show me my cart"**
+- **"What's in my cart?"**
+- **"Get cart summary"**
+- **"What are my total macros?"**
+
+The cart summary shows:
+- All items in your cart with quantities
+- Total macronutrients (calories, protein, carbs, fat, etc.)
+- Other nutritional information
+
 ### Plan Your Meal
 
 The chatbot can help you plan meals by:
 - Exploring available options
 - Finding items by category or name
 - Getting detailed information including nutrients
-- Comparing different food options
+- Adding items to your cart
+- Tracking total nutritional intake
 
 **Example conversation:**
 ```
 You: "What beef entrees are available?"
 Bot: [Shows list of beef entrees]
 
-You: "Get details for recipe ID 5765"
-Bot: [Shows recipe details, portion size, category, etc.]
+You: "Add recipe ID 5765 to my cart"
+Bot: [Adds item and shows nutrients]
 
-You: "Show me the ingredients for that recipe"
-Bot: [Shows ingredients if available]
+You: "Add recipe ID 1032 to cart"
+Bot: [Adds another item]
+
+You: "Show me my cart"
+Bot: [Shows cart with total macros: calories, protein, carbs, fat, etc.]
 ```
 
 ## Features
@@ -115,6 +143,8 @@ Bot: [Shows ingredients if available]
   - Ingredients (optional)
   - Cooking methods (optional)
   - Nutritional information (optional)
+- **Shopping Cart**: Add items to your cart and track nutritional totals
+- **Nutrition Tracking**: Automatically calculates total macronutrients (calories, protein, carbs, fat, etc.) for all items in your cart
 - **AI-Powered**: Natural language interface - just ask questions!
 
 ## Troubleshooting

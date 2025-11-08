@@ -15,6 +15,9 @@ app = Server("basic-mcp-server")
 # Path to the XML file
 XML_FILE = os.path.join(os.path.dirname(__file__), 'food_options.xml')
 
+# In-memory cart storage (recipe_id -> item data with nutrients)
+cart = {}
+
 def parse_xml():
     """Parse the XML file and return the root element"""
     tree = ET.parse(XML_FILE)
@@ -174,6 +177,34 @@ async def list_tools() -> list[Tool]:
                 "required": ["recipe_id"],
             },
         ),
+        Tool(
+            name="add_to_cart",
+            description="Add a food item to the cart by recipe ID. Fetches the recipe details with nutritional information and adds it to your cart. Returns confirmation with the item added.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "recipe_id": {
+                        "type": "string",
+                        "description": "The recipe ID to add to cart (e.g., '1032', '5765')",
+                    },
+                    "quantity": {
+                        "type": "number",
+                        "description": "Quantity of the item to add (default: 1)",
+                        "default": 1,
+                    },
+                },
+                "required": ["recipe_id"],
+            },
+        ),
+        Tool(
+            name="get_cart",
+            description="Get the current cart contents with a summary of total macronutrients (calories, protein, carbs, fat, etc.). Returns all items in cart and their combined nutritional totals.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        ),
     ]
 
 @app.call_tool()
@@ -257,7 +288,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
             
             # Format the result nicely
-            result = f"Recipe Details for ID {recipe_id}:\n\n"
+            result = ""
             
             # Extract and format key information
             if isinstance(recipe_data, dict) and 'RECIPE' in recipe_data:
@@ -265,16 +296,26 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 
                 # Basic information
                 if isinstance(recipe, dict):
-                    if 'id' in recipe:
-                        result += f"ID: {recipe['id']}\n"
-                    if 'name' in recipe:
-                        result += f"Name: {recipe['name']}\n"
-                    elif 'value' in recipe:
-                        result += f"Name: {recipe['value']}\n"
-                    if 'category' in recipe:
-                        result += f"Category: {recipe['category']}\n"
-                    if 'portionsize' in recipe:
-                        result += f"Portion Size: {recipe['portionsize']}\n"
+                    # Get name first for heading
+                    item_name = recipe.get('name') or recipe.get('value', 'Unknown')
+                    recipe_id_val = recipe.get('id', recipe_id)
+                    category = recipe.get('category', '')
+                    portion_size = recipe.get('portionsize', '')
+                    
+                    # Format as heading
+                    result += f"{item_name}\n\n"
+                    
+                    # Format details with proper spacing
+                    result += f"ID: {recipe_id_val}\n"
+                    if category:
+                        result += f"Category: {category}\n"
+                    if portion_size:
+                        result += f"Portion Size: {portion_size}\n"
+                    
+                    # Description/Additional info if available
+                    description = recipe.get('description', '')
+                    if description:
+                        result += f"\nDescription: {description}\n"
                     
                     # Additional details if available
                     if include_ingredients and 'ingredients' in recipe:
@@ -293,6 +334,167 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             return [TextContent(type="text", text=result)]
         except Exception as e:
             return [TextContent(type="text", text=f"Error retrieving recipe details: {str(e)}")]
+    
+    elif name == "add_to_cart":
+        try:
+            recipe_id = str(arguments.get("recipe_id", ""))
+            quantity = float(arguments.get("quantity", 1))
+            
+            if not recipe_id:
+                return [TextContent(type="text", text="Error: recipe_id is required")]
+            
+            # Try to get recipe details from API with nutrients
+            recipe_data = None
+            recipe = None
+            nutrients = {}
+            
+            try:
+                recipe_data = get_recipe_detail(
+                    recipe_id,
+                    nutrients="all",  # Get all nutrients
+                    rounding="raw"
+                )
+                
+                # Check for API errors
+                if recipe_data and 'STATUS' in recipe_data:
+                    status = recipe_data['STATUS']
+                    if isinstance(status, dict) and status.get('success') != '1':
+                        error = status.get('ERROR', {})
+                        if isinstance(error, dict) and error.get('number'):
+                            # API error - fall back to XML data
+                            recipe_data = None
+                
+                if recipe_data and 'RECIPE' in recipe_data:
+                    recipe = recipe_data['RECIPE']
+            except Exception as e:
+                # API call failed - fall back to XML data
+                recipe_data = None
+            
+            # Fall back to XML data if API failed
+            if not recipe:
+                root = parse_xml()
+                xml_recipe = root.find(f"./RECIPE[@id='{recipe_id}']")
+                if xml_recipe is None:
+                    return [TextContent(type="text", text=f"Error: Could not find recipe with ID {recipe_id}")]
+                
+                # Extract from XML
+                item_name = xml_recipe.text.strip() if xml_recipe.text else 'Unknown'
+                portion_size = xml_recipe.get('portionsize', '')
+                category = xml_recipe.get('category', '')
+            else:
+                # Extract recipe information from API response
+                item_name = recipe.get('name') or recipe.get('value', 'Unknown')
+                portion_size = recipe.get('portionsize', '')
+                category = recipe.get('category', '')
+                
+                # Extract nutrients from API response
+                if isinstance(recipe, dict) and 'nutrients' in recipe:
+                    nutrients_data = recipe['nutrients']
+                    if isinstance(nutrients_data, dict):
+                        nutrients = nutrients_data
+                    elif isinstance(nutrients_data, list):
+                        for nutrient in nutrients_data:
+                            if isinstance(nutrient, dict):
+                                nutrient_name = nutrient.get('name', '')
+                                nutrient_value = nutrient.get('value', 0)
+                                if nutrient_name:
+                                    try:
+                                        nutrients[nutrient_name] = float(nutrient_value) if nutrient_value else 0
+                                    except (ValueError, TypeError):
+                                        nutrients[nutrient_name] = 0
+            
+            # Store base nutrients (per unit) for this recipe
+            base_nutrients = nutrients.copy()
+            
+            # Store in cart (multiply nutrients by quantity)
+            cart_item = {
+                'recipe_id': recipe_id,
+                'name': item_name,
+                'category': category,
+                'portion_size': portion_size,
+                'quantity': quantity,
+                'base_nutrients': base_nutrients,  # Store per-unit nutrients
+                'nutrients': {k: v * quantity for k, v in nutrients.items()}  # Total nutrients
+            }
+            
+            # If item already in cart, update quantity and nutrients
+            if recipe_id in cart:
+                existing_quantity = cart[recipe_id]['quantity']
+                new_quantity = existing_quantity + quantity
+                cart[recipe_id]['quantity'] = new_quantity
+                # Use existing base_nutrients if available, otherwise use new ones
+                existing_base = cart[recipe_id].get('base_nutrients', base_nutrients)
+                cart[recipe_id]['base_nutrients'] = existing_base
+                # Recalculate total nutrients based on base nutrients and new quantity
+                cart[recipe_id]['nutrients'] = {k: v * new_quantity for k, v in existing_base.items()}
+            else:
+                cart[recipe_id] = cart_item
+            
+            result = f"Added to cart ({quantity}x):\n"
+            result += f"Name: {item_name}\n"
+            result += f"ID: {recipe_id}\n"
+            result += f"Portion Size: {portion_size}\n"
+            if nutrients:
+                result += f"\nNutrients (per {portion_size}):\n"
+                for nutrient_name, nutrient_value in list(nutrients.items())[:10]:  # Show first 10
+                    result += f"  {nutrient_name}: {nutrient_value}\n"
+            
+            return [TextContent(type="text", text=result)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error adding to cart: {str(e)}")]
+    
+    elif name == "get_cart":
+        try:
+            if not cart:
+                return [TextContent(type="text", text="Your cart is empty.")]
+            
+            # Calculate totals
+            total_nutrients = {}
+            items_list = []
+            
+            for recipe_id, item in cart.items():
+                items_list.append(f"- {item['name']} (ID: {item['recipe_id']}, Qty: {item['quantity']}, Portion: {item['portion_size']})")
+                
+                # Sum up nutrients
+                for nutrient_name, nutrient_value in item.get('nutrients', {}).items():
+                    if nutrient_name in total_nutrients:
+                        total_nutrients[nutrient_name] += nutrient_value
+                    else:
+                        total_nutrients[nutrient_name] = nutrient_value
+            
+            result = f"Cart Summary ({len(cart)} items):\n\n"
+            result += "Items:\n"
+            result += "\n".join(items_list)
+            
+            result += "\n\nTotal Macronutrients:\n"
+            # Common macro nutrients to display
+            macro_names = ['Calories', 'Protein', 'Carbohydrates', 'Total Fat', 'Saturated Fat', 'Fiber', 'Sodium']
+            
+            for macro in macro_names:
+                # Try different variations of the name
+                found = False
+                for nutrient_name, value in total_nutrients.items():
+                    if macro.lower() in nutrient_name.lower() or nutrient_name.lower() in macro.lower():
+                        result += f"  {macro}: {value:.2f}\n"
+                        found = True
+                        break
+                
+                if not found:
+                    # Try exact match
+                    if macro in total_nutrients:
+                        result += f"  {macro}: {total_nutrients[macro]:.2f}\n"
+            
+            # Show other nutrients if available
+            other_nutrients = {k: v for k, v in total_nutrients.items() 
+                              if not any(macro.lower() in k.lower() for macro in macro_names)}
+            if other_nutrients:
+                result += "\nOther Nutrients:\n"
+                for nutrient_name, value in list(other_nutrients.items())[:10]:  # Limit to 10
+                    result += f"  {nutrient_name}: {value:.2f}\n"
+            
+            return [TextContent(type="text", text=result)]
+        except Exception as e:
+            return [TextContent(type="text", text=f"Error retrieving cart: {str(e)}")]
     
     raise ValueError(f"Unknown tool: {name}")
 
